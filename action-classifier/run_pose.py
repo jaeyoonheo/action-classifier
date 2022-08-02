@@ -23,10 +23,12 @@ keypoints = ['nose','left_eye','right_eye','left_ear','right_ear','left_shoulder
 from torchvision import transforms as T
 
 video_list = os.listdir('./video')
-lstm_model = torch.load("model.pt")
+lstm_model = torch.load("./model/lstm_model.pt")
 lstm_model.eval()
 # results = ''
-results = [0,0,0,0,0,0]
+
+class
+results = [0 for i in range()]
 
 for video_path in video_list:
     
@@ -72,11 +74,7 @@ for video_path in video_list:
                     result = result.tolist()[0]
                     result = result.index(max(result))
                     results[result] += 1
-                    # results = results + str(result+1) +'\n'
 
 print(results)
 
-# f = open('results.txt','w')
-# f.write(results)
-# f.close()
     
