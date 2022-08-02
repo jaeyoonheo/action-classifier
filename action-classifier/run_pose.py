@@ -27,8 +27,8 @@ lstm_model = torch.load("./model/lstm_model.pt")
 lstm_model.eval()
 # results = ''
 
-class
-results = [0 for i in range()]
+num_classes = 6
+results = [0 for i in range(num_classes)]
 
 for video_path in video_list:
     
