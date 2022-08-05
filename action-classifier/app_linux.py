@@ -12,6 +12,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 from PyQt5.QtGui import QPixmap
 import numpy as np
+from math import dist
 
 import cv2
 import os
@@ -162,13 +163,16 @@ class Ui_MainWindow(object):
                 print('현재 프레임 : '+str(cnt))
                 if len(self.jointQueue) != 0:
                     for jq in self.jointQueue:
-                        print(jq[-1])
                         for kp in range(len(output["keypoints"])):
                             if output["scores"][kp] > 0.9:
                                 tmp = kp_flat(output["keypoints"][kp].detach().cpu().numpy().tolist())
-                                dif = float(jq[-1][0])-float(tmp[0]) + float(jq[-1][1])-float(tmp[1])
-                                if dif<20:
+                                dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
+                                print(jq[-1])
+                                print(tmp)
+                                print(dif)
+                                if dif<50:
                                     jq.append(tmp)
+                                    print("매치")
                                     break
                         if len(jq) > 8:
                             result = lstm_model(torch.Tensor([jq]))
@@ -188,8 +192,8 @@ class Ui_MainWindow(object):
                                 print(tmp)
                             else:
                                 for jq in self.jointQueue:
-                                    dif = float(jq[-1][0])-float(tmp[0]) + float(jq[-1][1])-float(tmp[1])
-                                    if dif>20 :
+                                    dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
+                                    if dif>50 :
                                         self.jointQueue.append([tmp])
                                         print(tmp)
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
