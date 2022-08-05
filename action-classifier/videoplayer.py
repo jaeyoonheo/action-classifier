@@ -6,11 +6,30 @@
 #
 # WARNING! All changes made in this file will be lost!
 
+from socket import SOCK_SEQPACKET
 import cv2, os, threading
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 from PyQt5.QtGui import QPixmap
 import numpy as np
+
+import cv2
+import os
+import torchvision
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from torchvision import transforms as T
+
+import joint
+
+# create a model object from the keypointrcnn_resnet50_fpn class
+model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
+# call the eval() method to prepare the model for inference mode.
+model.eval()
+model.cuda()
+
+# create the list of keypoints.
 
 running = False
 class Ui_MainWindow(object):
@@ -123,10 +142,20 @@ class Ui_MainWindow(object):
                     qImg = QtGui.QImage(img.data, w, h, w*c, QtGui.QImage.Format_RGB888)
                     pixmap = QtGui.QPixmap.fromImage(qImg)
                     
+                    transform = T.Compose([T.ToTensor()])
+                    img_tensor = transform(img).cuda()
+                    
+                    output = model([img_tensor])[0]
+                    skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)
+                    
+                    sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
+                    spixmap = QtGui.QPixmap.fromImage(sqImg)
+                    
                     # 출력 영상 resize
                     p = pixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
+                    sp = spixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
                     self.preImg.setPixmap(p)
-                    self.processedImg.setPixmap(p)
+                    self.processedImg.setPixmap(sp)
                     
                     if(cv2.waitKey(sleep_ms) == ord('q')):
                         break
