@@ -9,7 +9,7 @@
 from socket import SOCK_SEQPACKET
 import cv2, os, threading
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QSlider
 from PyQt5.QtGui import QPixmap
 import numpy as np
 from math import dist
@@ -47,6 +47,9 @@ def kp_flat(input):
     return tmp_pos
 
 running = False
+changed = False
+currentFrame = 0
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         self.th = threading.Thread(target=self.run, daemon=True)
@@ -72,6 +75,7 @@ class Ui_MainWindow(object):
         self.videoSlider = QtWidgets.QSlider(self.verticalLayoutWidget_2)
         self.videoSlider.setOrientation(QtCore.Qt.Horizontal)
         self.videoSlider.setObjectName("videoSlider")
+        self.videoSlider.valueChanged.connect(self.moved_slider)
         self.verticalLayout_4.addWidget(self.videoSlider)
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
@@ -121,6 +125,7 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+        # Value init
         self.jointQueue = []
 
     def retranslateUi(self, MainWindow):
@@ -139,15 +144,23 @@ class Ui_MainWindow(object):
     영상 재생
     '''
     def run(self):
+        global running, changed, currentFrame
+
         cnt = 0
         self.cap = cv2.VideoCapture(self.video_path)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.videoSlider.setRange(0,frame-1)
+        self.videoSlider.setSingleStep(1)
+        strg = []
 
         while self.cap.isOpened():
             cnt += 1
             ret, img = self.cap.read()
             if ret:
+                strg.append([])
+                self.videoSlider.setValue(self.cap.get(cv2.CAP_PROP_POS_FRAMES)-1)
                 fps = self.cap.get(cv2.CAP_PROP_FPS)
                 sleep_ms = int(np.round((1/fps)*500))
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -178,7 +191,7 @@ class Ui_MainWindow(object):
                             result = lstm_model(torch.Tensor([jq]))
                             result = result.tolist()
                             result = result.index(max(result))
-                            cv2.putText(skeletal_img, action[result], (int(jq[-1][0]),int(jq[-1][1])),cv2.FONT_HERSHEY_SIMPLEX,5,(255,0,0),10,cv2.LINE_AA)
+                            cv2.putText(skeletal_img, action[result], (int(jq[-1][0]),int(jq[-1][1])),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
                             print((int(jq[-1][0]),int(jq[-1][1])))
                             jq.pop(0)
                             print(action[result])
@@ -204,7 +217,35 @@ class Ui_MainWindow(object):
                 sp = spixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
                 self.preImg.setPixmap(p)
                 self.processedImg.setPixmap(sp)
+
+                
             else: break
+        # 영상 재생 끝난 후 다시 돌아보기
+        changed = True
+        preFrame = currentFrame
+        while changed:
+            if preFrame != currentFrame:
+                preFrame = currentFrame
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, currentFrame-1)
+                print(currentFrame)
+                ret,img = self.cap.read()
+                if ret:
+                    h,w,c = img.shape
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    qImg = QtGui.QImage(img.data, w, h, w*c, QtGui.QImage.Format_RGB888)
+                    pixmap = QtGui.QPixmap.fromImage(qImg)
+                    p = pixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
+                    img_tensor = transform(img).cuda()
+                        
+                    output = model([img_tensor])[0]
+                    skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
+                    sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
+                    spixmap = QtGui.QPixmap.fromImage(sqImg)
+
+                    sp = spixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
+                    self.preImg.setPixmap(p)
+                    self.processedImg.setPixmap(sp)
+
         self.cap.release()
         print("Thread end.")
     
@@ -213,9 +254,10 @@ class Ui_MainWindow(object):
         
     def start(self):
         global running
-        running = True
         # 최초 실행 시 flag 체크해서 중복재생 방지
         if not self.th.is_alive():
+            running = True
+            self.th = threading.Thread(target=self.run, daemon=True)
             self.th.start()
             print("started")
             return
@@ -251,6 +293,12 @@ class Ui_MainWindow(object):
         # self.cap = cv2.VideoCapture(self.video_path)
         print(self.video_path)
 
+    def moved_slider(self, value):
+        global running, changed, currentFrame
+        currentFrame = value
+        changed = True
+
+
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
@@ -259,7 +307,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec_())
-
-
-
-
