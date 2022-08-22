@@ -6,3 +6,6 @@
 
 ![image](https://user-images.githubusercontent.com/109254266/183565526-5701e525-7a19-44e0-96a5-5a40ead32281.png)
 실행 예시
+
+SORT 알고리즘 적용 후 object tracking 추가하는 작업 진행중...
+branch aa 확인
