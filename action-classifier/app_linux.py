@@ -161,41 +161,19 @@ class Ui_MainWindow(object):
                 output = model([img_tensor])[0]
                 skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
                 print('현재 프레임 : '+str(cnt))
-                if len(self.jointQueue) != 0:
-                    for jq in self.jointQueue:
-                        for kp in range(len(output["keypoints"])):
-                            if output["scores"][kp] > 0.9:
-                                tmp = kp_flat(output["keypoints"][kp].detach().cpu().numpy().tolist())
-                                dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
-                                print(jq[-1])
-                                print(tmp)
-                                print(dif)
-                                if dif<50:
-                                    jq.append(tmp)
-                                    print("매치")
-                                    break
-                        if len(jq) > 8:
-                            result = lstm_model(torch.Tensor([jq]))
-                            result = result.tolist()
-                            result = result.index(max(result))
-                            cv2.putText(skeletal_img, action[result], (int(jq[-1][0]),int(jq[-1][1])),cv2.FONT_HERSHEY_SIMPLEX,5,(255,0,0),10,cv2.LINE_AA)
-                            print((int(jq[-1][0]),int(jq[-1][1])))
-                            jq.pop(0)
-                            print(action[result])
-                else:
-                    for kp in range(len(output["keypoints"])):
-                        if output["scores"][kp] > 0.9:
-                            tmp = kp_flat(output["keypoints"][kp].detach().cpu().numpy().tolist())
-                            
-                            if len(self.jointQueue) == 0:
-                                self.jointQueue.append([tmp])
-                                print(tmp)
-                            else:
-                                for jq in self.jointQueue:
-                                    dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
-                                    if dif>50 :
-                                        self.jointQueue.append([tmp])
-                                        print(tmp)
+                
+                # SORT object tracking
+                detections = []
+                for kp in range(len(output["scores"])):
+                    if output["scores"][kp]>0.9:
+                        detections.append(output["boxes"][kp].detach().cpu().numpy().tolist())
+                        detections[-1].append(output["scores"][kp].detach().cpu().numpy().tolist())
+                        detections[-1] = [int(item) for item in detections[-1]]
+
+                        print(detections)
+                track_bbs_ids = mot_tracker.update(detections)
+                print(detections)
+                
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
                         
