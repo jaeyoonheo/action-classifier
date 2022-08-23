@@ -9,7 +9,7 @@
 from socket import SOCK_SEQPACKET
 import cv2, os, threading
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QSlider
 from PyQt5.QtGui import QPixmap
 import numpy as np
 from math import dist
@@ -23,6 +23,9 @@ import matplotlib.pyplot as plt
 from torchvision import transforms as T
 
 import joint
+
+from sort import *
+
 
 # action class
 action = ['walk', 'run', 'hug', 'collapse', 'cross arms', 'clap']
@@ -47,6 +50,9 @@ def kp_flat(input):
     return tmp_pos
 
 running = False
+changed = False
+currentFrame = 0
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         self.th = threading.Thread(target=self.run, daemon=True)
@@ -72,6 +78,7 @@ class Ui_MainWindow(object):
         self.videoSlider = QtWidgets.QSlider(self.verticalLayoutWidget_2)
         self.videoSlider.setOrientation(QtCore.Qt.Horizontal)
         self.videoSlider.setObjectName("videoSlider")
+        self.videoSlider.valueChanged.connect(self.moved_slider)
         self.verticalLayout_4.addWidget(self.videoSlider)
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
@@ -121,6 +128,7 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+        # Value init
         self.jointQueue = []
 
     def retranslateUi(self, MainWindow):
@@ -139,15 +147,26 @@ class Ui_MainWindow(object):
     영상 재생
     '''
     def run(self):
+        global running, changed, currentFrame
+
+        # create instance of SORT
+        mot_tracker = Sort()
+        
         cnt = 0
         self.cap = cv2.VideoCapture(self.video_path)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.videoSlider.setRange(0,frame-1)
+        self.videoSlider.setSingleStep(1)
+        strg = []
 
         while self.cap.isOpened():
             cnt += 1
             ret, img = self.cap.read()
             if ret:
+                strg.append([])
+                self.videoSlider.setValue(self.cap.get(cv2.CAP_PROP_POS_FRAMES)-1)
                 fps = self.cap.get(cv2.CAP_PROP_FPS)
                 sleep_ms = int(np.round((1/fps)*500))
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -161,19 +180,38 @@ class Ui_MainWindow(object):
                 output = model([img_tensor])[0]
                 skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
                 print('현재 프레임 : '+str(cnt))
-                
-                # SORT object tracking
+
+                # SORT Object Tracking
                 detections = []
+                kp_list = []
                 for kp in range(len(output["scores"])):
                     if output["scores"][kp]>0.9:
                         detections.append(output["boxes"][kp].detach().cpu().numpy().tolist())
                         detections[-1].append(output["scores"][kp].detach().cpu().numpy().tolist())
-                        detections[-1] = [int(item) for item in detections[-1]]
-
                         print(detections)
+                        kp_list.append(kp)
                 track_bbs_ids = mot_tracker.update(detections)
-                print(detections)
+                print(track_bbs_ids)
                 
+                for i in reversed(range(len(track_bbs_ids))):
+                    id = int(track_bbs_ids[i][4])
+                    x = int(track_bbs_ids[i][0])
+                    y = int(track_bbs_ids[i][1])
+                    tmp = kp_flat(output["keypoints"][kp_list[i]].detach().cpu().numpy().tolist())
+                    if len(self.jointQueue) < id :
+                        self.jointQueue.append([tmp])
+                    else :
+                        self.jointQueue[id-1].append(tmp)
+                        if len(self.jointQueue[id-1])>8:
+                            result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
+                            result = result.index(max(result))
+                            self.jointQueue[id-1].pop(0)
+                            print(result)
+                            cv2.putText(skeletal_img, str(id)+'   '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+                            continue
+                    cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+
+
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
                         
@@ -182,7 +220,35 @@ class Ui_MainWindow(object):
                 sp = spixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
                 self.preImg.setPixmap(p)
                 self.processedImg.setPixmap(sp)
+
+                
             else: break
+        # 영상 재생 끝난 후 다시 돌아보기
+        changed = True
+        preFrame = currentFrame
+        while changed:
+            if preFrame != currentFrame:
+                preFrame = currentFrame
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, currentFrame-1)
+                print(currentFrame)
+                ret,img = self.cap.read()
+                if ret:
+                    h,w,c = img.shape
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    qImg = QtGui.QImage(img.data, w, h, w*c, QtGui.QImage.Format_RGB888)
+                    pixmap = QtGui.QPixmap.fromImage(qImg)
+                    p = pixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
+                    img_tensor = transform(img).cuda()
+                        
+                    output = model([img_tensor])[0]
+                    skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
+                    sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
+                    spixmap = QtGui.QPixmap.fromImage(sqImg)
+
+                    sp = spixmap.scaled(int(w*480/h), 480, QtCore.Qt.IgnoreAspectRatio)
+                    self.preImg.setPixmap(p)
+                    self.processedImg.setPixmap(sp)
+
         self.cap.release()
         print("Thread end.")
     
@@ -191,9 +257,10 @@ class Ui_MainWindow(object):
         
     def start(self):
         global running
-        running = True
         # 최초 실행 시 flag 체크해서 중복재생 방지
         if not self.th.is_alive():
+            running = True
+            self.th = threading.Thread(target=self.run, daemon=True)
             self.th.start()
             print("started")
             return
@@ -223,11 +290,18 @@ class Ui_MainWindow(object):
             self.videoList.model().removeRow(modelindex.row())
             
     def itemClicked(self):
-        global running
+        global running, changed
         running = False
+        changed = False
         self.video_path = self.videoList.selectedItems()[0].text()
         # self.cap = cv2.VideoCapture(self.video_path)
         print(self.video_path)
+
+    def moved_slider(self, value):
+        global running, changed, currentFrame
+        currentFrame = value
+        changed = True
+
 
 if __name__ == "__main__":
     import sys
@@ -237,7 +311,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec_())
-
-
-
-
