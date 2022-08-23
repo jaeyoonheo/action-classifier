@@ -4,8 +4,7 @@
 ### Problems
 1. multi tracking algorithm을 SORT로 적용시키고자 한다.
 
-![image](https://user-images.githubusercontent.com/109254266/183565526-5701e525-7a19-44e0-96a5-5a40ead32281.png)
+![image](https://user-images.githubusercontent.com/109254266/186112732-0bc226a2-7c73-469f-abe9-56b8b19cf707.png)
 실행 예시
 
-SORT 알고리즘 적용 후 object tracking 추가하는 작업 진행중...
-branch aa 확인
+SORT 알고리즘 적용 후 object tracking 추가완료 Aa pull request
