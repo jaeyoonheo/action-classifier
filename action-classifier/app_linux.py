@@ -211,7 +211,6 @@ class Ui_MainWindow(object):
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
 
-
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
                         
