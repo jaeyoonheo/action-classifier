@@ -24,6 +24,9 @@ from torchvision import transforms as T
 
 import joint
 
+from sort import *
+
+
 # action class
 action = ['walk', 'run', 'hug', 'collapse', 'cross arms', 'clap']
 
@@ -146,6 +149,9 @@ class Ui_MainWindow(object):
     def run(self):
         global running, changed, currentFrame
 
+        # create instance of SORT
+        mot_tracker = Sort()
+        
         cnt = 0
         self.cap = cv2.VideoCapture(self.video_path)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -174,41 +180,37 @@ class Ui_MainWindow(object):
                 output = model([img_tensor])[0]
                 skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
                 print('현재 프레임 : '+str(cnt))
-                if len(self.jointQueue) != 0:
-                    for jq in self.jointQueue:
-                        for kp in range(len(output["keypoints"])):
-                            if output["scores"][kp] > 0.9:
-                                tmp = kp_flat(output["keypoints"][kp].detach().cpu().numpy().tolist())
-                                dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
-                                print(jq[-1])
-                                print(tmp)
-                                print(dif)
-                                if dif<50:
-                                    jq.append(tmp)
-                                    print("매치")
-                                    break
-                        if len(jq) > 8:
-                            result = lstm_model(torch.Tensor([jq]))
-                            result = result.tolist()
+
+                # SORT Object Tracking
+                detections = []
+                kp_list = []
+                for kp in range(len(output["scores"])):
+                    if output["scores"][kp]>0.9:
+                        detections.append(output["boxes"][kp].detach().cpu().numpy().tolist())
+                        detections[-1].append(output["scores"][kp].detach().cpu().numpy().tolist())
+                        print(detections)
+                        kp_list.append(kp)
+                track_bbs_ids = mot_tracker.update(detections)
+                print(track_bbs_ids)
+                
+                for i in reversed(range(len(track_bbs_ids))):
+                    id = int(track_bbs_ids[i][4])
+                    x = int(track_bbs_ids[i][0])
+                    y = int(track_bbs_ids[i][1])
+                    tmp = kp_flat(output["keypoints"][kp_list[i]].detach().cpu().numpy().tolist())
+                    if len(self.jointQueue) < id :
+                        self.jointQueue.append([tmp])
+                    else :
+                        self.jointQueue[id-1].append(tmp)
+                        if len(self.jointQueue[id-1])>8:
+                            result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
                             result = result.index(max(result))
-                            cv2.putText(skeletal_img, action[result], (int(jq[-1][0]),int(jq[-1][1])),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
-                            print((int(jq[-1][0]),int(jq[-1][1])))
-                            jq.pop(0)
-                            print(action[result])
-                else:
-                    for kp in range(len(output["keypoints"])):
-                        if output["scores"][kp] > 0.9:
-                            tmp = kp_flat(output["keypoints"][kp].detach().cpu().numpy().tolist())
-                            
-                            if len(self.jointQueue) == 0:
-                                self.jointQueue.append([tmp])
-                                print(tmp)
-                            else:
-                                for jq in self.jointQueue:
-                                    dif = dist((int(jq[-1][0]),int(jq[-1][1])), (int(tmp[0]),int(tmp[1])))
-                                    if dif>50 :
-                                        self.jointQueue.append([tmp])
-                                        print(tmp)
+                            self.jointQueue[id-1].pop(0)
+                            print(result)
+                            cv2.putText(skeletal_img, str(id)+'   '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+                            continue
+                    cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
                         
@@ -287,8 +289,9 @@ class Ui_MainWindow(object):
             self.videoList.model().removeRow(modelindex.row())
             
     def itemClicked(self):
-        global running
+        global running, changed
         running = False
+        changed = False
         self.video_path = self.videoList.selectedItems()[0].text()
         # self.cap = cv2.VideoCapture(self.video_path)
         print(self.video_path)
@@ -307,7 +310,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec_())
-
-
-
-
