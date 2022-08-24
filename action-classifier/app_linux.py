@@ -149,9 +149,9 @@ class Ui_MainWindow(object):
     def run(self):
         global running, changed, currentFrame
 
-        # create instance of SORT
         mot_tracker = Sort()
-        
+        print(mot_tracker)
+
         cnt = 0
         self.cap = cv2.VideoCapture(self.video_path)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -207,9 +207,10 @@ class Ui_MainWindow(object):
                             result = result.index(max(result))
                             self.jointQueue[id-1].pop(0)
                             print(result)
-                            cv2.putText(skeletal_img, str(id)+'   '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+                            cv2.putText(skeletal_img, str(id)+' '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+
 
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
@@ -249,6 +250,10 @@ class Ui_MainWindow(object):
                     self.processedImg.setPixmap(sp)
 
         self.cap.release()
+        self.jointQueue=[]
+        del mot_tracker
+        # create instance of SORT
+
         print("Thread end.")
     
     def stop(self):
