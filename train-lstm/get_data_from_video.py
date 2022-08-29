@@ -141,6 +141,7 @@ for action in class_id:
       cap = cv2.VideoCapture(video_path)
       cnt = 0
       print(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+      line_x = []
       while cap.isOpened():
         ret, img = cap.read()
         cnt+=1
@@ -157,18 +158,23 @@ for action in class_id:
           추후에 sort 알고리즘을 적용하여 객체별
           추적, 데이터 축적이 필요하다.
           '''
-          for kp in range(len(output['keypoints'])):
-            line_x = []
+          
+          kp=0
+          # 아래 문장을 for문으로 대체하면 검출되는 모든 객체에 대한 작업 수행 가능
+          if len(output['scores'])>0:
             if output['scores'][kp]>0.9:
               tmp = output['keypoints'][kp].detach().cpu().numpy().tolist()
               # get flatten
               tmp = [y for x in tmp for y in x[0:2]]
+          
               x1 = output['boxes'][kp][0]
               x2 = output['boxes'][kp][2]
               y1 = output['boxes'][kp][1]
               y2 = output['boxes'][kp][3]
+                
               box_width = x2-x1
               box_height = y2-y1
+
               # convert value to ratio of area
               for i in range(len(tmp)):
                 if i%2 == 0:
@@ -177,7 +183,7 @@ for action in class_id:
                 else:
                   tmp[i] -= y1
                   tmp[i] /= box_height
-                line_x.append(','.join("{:.5f}".format(x) for x in tmp))
+              line_x.append(','.join("{:.5f}".format(x) for x in tmp))
         else: break
         
     # WINDOW_SIZE에 맞춰서 학습용 데이터 생성
@@ -186,11 +192,11 @@ for action in class_id:
       if random.random() < 0.7:
         train_x += '\n'.join(_x)
         train_x += '\n'
-        train_y += str(class_id.index(action))+'\n'
+        train_y += str(class_id.index(action)+1)+'\n'
       else:
         test_x += '\n'.join(_x)
         test_x += '\n'
-        test_y += str(class_id.index(action))+'\n'
+        test_y += str(class_id.index(action)+1)+'\n'
 
     cap.release()
 
