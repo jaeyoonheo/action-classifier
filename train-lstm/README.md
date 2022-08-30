@@ -22,9 +22,11 @@ brighten-internship 폴더에 action-classifier, train-lstm, train-keypoints 세
 
 사용한 프레임워크는 pytorch의 keypoint-rcnn과 lstm이며, `get_data_from_video.py  ` 의 영상이 저장된 디렉토리인 `DIR`, 분류할 대상을 나열한 리스트 `class_id`, 시계열 데이터의 단위를 지정하는 `WINDOW_SIZE`를 수정하여 원하는 방식으로 커스텀 할 수 있다.
 
+변하는 이미지 해상도에 공통적으로 적용하기 위해서 keypoint의 위치를 절대 좌표가 아닌 box 영역에 대한 상대적인 비율로 나타내도록 변경했다.
 
 
-입력 예시
+
+**입력 예시**
 
 ```python
 # 구분하고자 하는 동작을 모두 나열
@@ -35,7 +37,7 @@ DIR = '../action-classifier/video'
 WINDOW_SIZE = 9
 ```
 
-실행 결과
+**실행 결과**
 
 ```
 X_train.txt
@@ -57,3 +59,14 @@ Y_train.txt
 ⋮
 ```
 
+
+
+X, Y에 대한 train과 test dataset을 모두 구축했으면, 
+
+https://colab.research.google.com/drive/1yg6SQ8iWNRS8yz1Gum9znIAZmd_C_3hy#scrollTo=Uendd5wdvYAA
+
+해당 링크의 코드를 실행시켜서 
+
+가중치 파일 model.pt를 얻어올 수 있다.
+
+메모에 어떻게 실행할 수 있는지 작성해 놓았다.
