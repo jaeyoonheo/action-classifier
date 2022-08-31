@@ -27,8 +27,8 @@ import joint
 from sort import *
 
 
-# action class
-action = ['walk', 'run', 'hug', 'collapse', 'cross arms', 'clap']
+# action class / 학습할 때 사용한 index와 동일해야 함
+action = ['walk','running','standing','sit','jumping','lie']
 
 # create a model object from the keypointrcnn_resnet50_fpn class
 model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
@@ -36,24 +36,20 @@ model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
 model.eval()
 model.cuda()
 
+# create model instance for classify action
 lstm_model = torch.load("./model/lstm_model.pt")
 lstm_model.eval()
 
-# create the list of keypoints.
-
-def kp_flat(input):
-    input_flatten = [y for x in input for y in x]
-    tmp_pos = []
-    for i in range(len(input_flatten)):
-        if i%3 != 2 :
-            tmp_pos.append(input_flatten[i])
-    return tmp_pos
-
+# 동영상 쓰레드에서 재생 상태를 확인하기 위한 global 변수
 running = False
 changed = False
 currentFrame = 0
 
+
 class Ui_MainWindow(object):
+    '''
+    UI 구성
+    '''
     def setupUi(self, MainWindow):
         self.th = threading.Thread(target=self.run, daemon=True)
         MainWindow.setObjectName("MainWindow")
@@ -149,34 +145,40 @@ class Ui_MainWindow(object):
     def run(self):
         global running, changed, currentFrame
 
+        # 멀티 트래킹을 위한 객체 생성
         mot_tracker = Sort()
-        print(mot_tracker)
 
+        # 현재 재생 중인 영상의 카운트를 저장하기 위한 변수
         cnt = 0
+        # 영상 load
         self.cap = cv2.VideoCapture(self.video_path)
-        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # 영상 정보 get
         frame = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # 영상 재생 현황을 나타내기 위한 slider의 현재 위치 세팅
         self.videoSlider.setRange(0,frame-1)
         self.videoSlider.setSingleStep(1)
-        strg = []
 
+        # 영상이 열려 있으면
         while self.cap.isOpened():
             cnt += 1
             ret, img = self.cap.read()
+            # 확인해야 하는 프레임 단위 지정. 현재 영상은 초당 30프레임, 인식할 영상은 초당 10프레임으로 3번당 한 번씩 인식하도록 구성
+            if cnt%3 != 0:
+                continue
+            # 영상이 정상적으로 read 되었을 때
             if ret:
-                strg.append([])
                 self.videoSlider.setValue(self.cap.get(cv2.CAP_PROP_POS_FRAMES)-1)
-                fps = self.cap.get(cv2.CAP_PROP_FPS)
-                sleep_ms = int(np.round((1/fps)*500))
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 h,w,c = img.shape
+                # 영상을 label에 출력하기 위해 크기 설정
                 qImg = QtGui.QImage(img.data, w, h, w*c, QtGui.QImage.Format_RGB888)
                 pixmap = QtGui.QPixmap.fromImage(qImg)
                         
+                # 이미지를 텐서로 변환
                 transform = T.Compose([T.ToTensor()])
                 img_tensor = transform(img).cuda()
                         
+                # 모델에 영상을 입력해서 pose detection 결과를 확인
                 output = model([img_tensor])[0]
                 skeletal_img = joint.draw_skeleton_per_person(img, output["keypoints"], output["keypoints_scores"], output["scores"],keypoint_threshold=2)    
                 print('현재 프레임 : '+str(cnt))
@@ -188,30 +190,55 @@ class Ui_MainWindow(object):
                     if output["scores"][kp]>0.9:
                         detections.append(output["boxes"][kp].detach().cpu().numpy().tolist())
                         detections[-1].append(output["scores"][kp].detach().cpu().numpy().tolist())
-                        print(detections)
                         kp_list.append(kp)
                 track_bbs_ids = mot_tracker.update(detections)
-                print(track_bbs_ids)
                 
+                # 객체 추적 결과는 id의 역순으로 저장되므로 뒤에서부터 실행
                 for i in reversed(range(len(track_bbs_ids))):
                     id = int(track_bbs_ids[i][4])
                     x = int(track_bbs_ids[i][0])
                     y = int(track_bbs_ids[i][1])
-                    tmp = kp_flat(output["keypoints"][kp_list[i]].detach().cpu().numpy().tolist())
+
+                    # 검출된 키포인트 결과를 box의 크기에 대한 비율로 변환
+                    tmp = output["keypoints"][kp_list[i]].detach().cpu().numpy().tolist()
+                    tmp = [y for x in tmp for y in x[0:2]]
+          
+                    x1 = output['boxes'][kp][0]
+                    x2 = output['boxes'][kp][2]
+                    y1 = output['boxes'][kp][1]
+                    y2 = output['boxes'][kp][3]
+                
+                    box_width = x2-x1
+                    box_height = y2-y1
+
+                    for i in range(len(tmp)):
+                        if i%2 == 0:
+                            tmp[i] -= x1
+                            tmp[i] /= box_width
+                        else:
+                            tmp[i] -= y1
+                            tmp[i] /= box_height
+                    
+
+                    # 총 9개의 프레임까지 저장하고, 그 갯수가 넘어가면 lstm 모델에 입력해서 어떤 동작인지 결과 확인
+                    # result는 학습된 클래스 개수만큼 각 동작에 대한 confidence를 출력 / 가장 높은 confidence를 가지는 값을 영상에 출력
                     if len(self.jointQueue) < id :
                         self.jointQueue.append([tmp])
                     else :
                         self.jointQueue[id-1].append(tmp)
                         if len(self.jointQueue[id-1])>8:
                             result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
+                            result = result[0]
+                            print(result)
                             result = result.index(max(result))
                             self.jointQueue[id-1].pop(0)
-                            print(result)
+                            
                             cv2.putText(skeletal_img, str(id)+' '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
 
-
+                
+                # joint가 검출된 영상을 라벨에 출력
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
                 spixmap = QtGui.QPixmap.fromImage(sqImg)
                         
@@ -224,6 +251,7 @@ class Ui_MainWindow(object):
                 
             else: break
         # 영상 재생 끝난 후 다시 돌아보기
+        # 이전 코드 일부 반복
         changed = True
         preFrame = currentFrame
         while changed:
@@ -251,48 +279,54 @@ class Ui_MainWindow(object):
 
         self.cap.release()
         self.jointQueue=[]
+        # 인스턴스 할당 해제
         del mot_tracker
         # create instance of SORT
 
         print("Thread end.")
-    
-    def stop(self):
-        print("stoped")
-        
+
+    # play 버튼 클릭 시 이벤트
     def start(self):
         global running
         # 최초 실행 시 flag 체크해서 중복재생 방지
         if not self.th.is_alive():
             running = True
+            # thread 생성 후 시작
             self.th = threading.Thread(target=self.run, daemon=True)
             self.th.start()
             print("started")
             return
+        # 이미 thread가 실행되어 있다면 중복 실행을 방지하기 위해 아무 행동도 하지 않음
         print("now exist thread")
 
     def onExit(self):
         print("exit")
         self.stop()
         
+    # 원래 이전 프레임 확인 용도로 작성했으나 기능x
     def prev(self):
         global running
         running = False
         
+    # 원래 이후 프레임 확인 용도로 작성했으나 기능x
     def next(self):
         global running
         running = True
-        
+    
+    # new 버튼을 클릭했을 때 경로를 입력하는 함수
     def new(self):
         filename, extension = QtWidgets.QFileDialog.getOpenFileName(None,'Open File')
         self.videoList.addItem(QListWidgetItem(filename))
 
+    # new로 추가한 경로를 리스트에서 삭제하는 함수
     def delete(self):
         lst_modelindex = self.videoList.selectedIndexes()
 
         for modelindex in lst_modelindex:
             print(modelindex.row())
             self.videoList.model().removeRow(modelindex.row())
-            
+    
+    # 리스트의 아이템이 더블 클릭 되었을 때 실행 / 쓰레드 종료 글로벌 변수 변경
     def itemClicked(self):
         global running, changed
         running = False
@@ -301,6 +335,7 @@ class Ui_MainWindow(object):
         # self.cap = cv2.VideoCapture(self.video_path)
         print(self.video_path)
 
+    # 슬라이더가 움직일 때 해당 위치로 영상 이동
     def moved_slider(self, value):
         global running, changed, currentFrame
         currentFrame = value
