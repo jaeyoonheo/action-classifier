@@ -131,24 +131,30 @@ train_y = ''
 test_x = ''
 test_y = ''
 
+# 분류하고자 하는 클래스 각각의 이름
 for action in class_id:
     action_dir = os.path.join(DIR,action)
     video_list = os.listdir(action_dir)
+    # 행동 폴더 내 비디오 목록
     for video in video_list:
       print(video)
       video_path = os.path.join(action_dir,video)
 
+      # 영상 내 
       cap = cv2.VideoCapture(video_path)
       cnt = 0
       print(cap.get(cv2.CAP_PROP_FRAME_COUNT))
       line_x = []
       while cap.isOpened():
+        # 프레임 읽어오기
         ret, img = cap.read()
         cnt+=1
         
         print(cnt)
+        # 3프레임 중 한 번 마다 통과
         if cnt%3!=0: continue
         if ret:
+          # 키포인트 획득
           transform = T.Compose([T.ToTensor()])
           img_tensor = transform(img).cuda()
           output = model([img_tensor])[0]
@@ -161,6 +167,7 @@ for action in class_id:
           
           kp=0
           # 아래 문장을 for문으로 대체하면 검출되는 모든 객체에 대한 작업 수행 가능
+          # bounding box에 대한 상대적인 키포인트 위치 비율로 변환
           if len(output['scores'])>0:
             if output['scores'][kp]>0.9:
               tmp = output['keypoints'][kp].detach().cpu().numpy().tolist()
