@@ -14,3 +14,6 @@ Keypoint detection을 통해 얻은 keypoint 좌표 시계열 데이터를 일�
 ### Custom Keypoint Training
 기존의 17점 keypoint을 대신하여 사용하기 위해 16점 혹은 27점 keypoint를 직접 학습한다.
 annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 README.md에 학습 양식을 적어놓았다.
+
+### 앞으로 해야하는 것
+Yolo를 이용한 얼굴 인식, 현재 Tracking 알고리즘과 얼굴 인식을 합쳐서 객체 ID 부여, 현재까지 수행한 것들의 DB 전송용 Dictionary 데이터 생성
