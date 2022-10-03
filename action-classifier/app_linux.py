@@ -277,6 +277,8 @@ class Ui_MainWindow(object):
                     self.preImg.setPixmap(p)
                     self.processedImg.setPixmap(sp)
 
+        # 여기까지 Label 변수 지우고 외부         
+           
         self.cap.release()
         self.jointQueue=[]
         # 인스턴스 할당 해제
