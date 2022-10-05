@@ -200,7 +200,8 @@ class Ui_MainWindow(object):
                     y = int(track_bbs_ids[i][1])
 
                     # 검출된 키포인트 결과를 box의 크기에 대한 비율로 변환
-                    tmp = output["keypoints"][kp_list[i]].detach().cpu().numpy().tolist()
+                    kp = kp_list[i]
+                    tmp = output["keypoints"][kp].detach().cpu().numpy().tolist()
                     tmp = [y for x in tmp for y in x[0:2]]
           
                     x1 = output['boxes'][kp][0]
