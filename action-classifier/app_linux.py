@@ -28,7 +28,8 @@ from sort import *
 
 
 # action class / 학습할 때 사용한 index와 동일해야 함
-action = ['walk','running','standing','sit','jumping','lie']
+# action = ['walk','running','standing','sit','jumping','lie']
+action = ['lie','running','sit','walk']
 
 # create a model object from the keypointrcnn_resnet50_fpn class
 model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
@@ -37,7 +38,7 @@ model.eval()
 model.cuda()
 
 # create model instance for classify action
-lstm_model = torch.load("./model/lstm_model.pt")
+lstm_model = torch.load("./model/2022-09-16.pt")
 lstm_model.eval()
 
 # 동영상 쓰레드에서 재생 상태를 확인하기 위한 global 변수
@@ -203,14 +204,29 @@ class Ui_MainWindow(object):
                     kp = kp_list[i]
                     tmp = output["keypoints"][kp].detach().cpu().numpy().tolist()
                     tmp = [y for x in tmp for y in x[0:2]]
-          
-                    x1 = output['boxes'][kp][0]
-                    x2 = output['boxes'][kp][2]
-                    y1 = output['boxes'][kp][1]
-                    y2 = output['boxes'][kp][3]
-                
+                    
+                    '''
+                    tmp[0,1] 코, tmp[2,3] 왼쪽눈, tmp[4,5] 오른쪽 눈, tmp[6,7] 왼쪽 귀, tmp[8,9] 오른쪽 
+                    코에서 전체 영상의 1/6 size만큼 얼굴 crop
+                    시계열 데이터가 2개 이상이면 거리 측정 실행.
+                    '''
+                    boxes = output['boxes'][kp].cpu() # .numpy().tolist()
+
+                    x1 = boxes[0]
+                    x2 = boxes[2]
+                    y1 = boxes[1]
+                    y2 = boxes[3]
+
                     box_width = x2-x1
                     box_height = y2-y1
+
+                    face_std = max(box_width, box_height) //12
+                    face_std = int(face_std)
+
+                    face_x1 = int(tmp[0] - face_std)
+                    face_y1 = int(tmp[1] - face_std)
+                    face_x2 = int(tmp[0] + face_std)
+                    face_y2 = int(tmp[1] + face_std)
 
                     for i in range(len(tmp)):
                         if i%2 == 0:
@@ -222,12 +238,14 @@ class Ui_MainWindow(object):
                     
 
                     # 총 9개의 프레임까지 저장하고, 그 갯수가 넘어가면 lstm 모델에 입력해서 어떤 동작인지 결과 확인
+                    # 분류에 사용하는 시계열 데이터의 길이를 늘렸을 때 정확도가 비약적으로 향상되는 것을 확인함
                     # result는 학습된 클래스 개수만큼 각 동작에 대한 confidence를 출력 / 가장 높은 confidence를 가지는 값을 영상에 출력
                     if len(self.jointQueue) < id :
                         self.jointQueue.append([tmp])
                     else :
                         self.jointQueue[id-1].append(tmp)
                         if len(self.jointQueue[id-1])>8:
+                            f_cnt = 0
                             result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
                             result = result[0]
                             print(result)
@@ -235,6 +253,10 @@ class Ui_MainWindow(object):
                             self.jointQueue[id-1].pop(0)
                             
                             cv2.putText(skeletal_img, str(id)+' '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
+                            face_img = img[face_y1:face_y2,face_x1:face_x2].copy()
+                            #img[0:100,0:100]
+                            cv2.imwrite('./save/'+str(id)+'_'+str(f_cnt)+'.jpg',face_img)
+                            f_cnt += 1
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
 
@@ -278,8 +300,6 @@ class Ui_MainWindow(object):
                     self.preImg.setPixmap(p)
                     self.processedImg.setPixmap(sp)
 
-        # 여기까지 Label 변수 지우고 외부         
-           
         self.cap.release()
         self.jointQueue=[]
         # 인스턴스 할당 해제
