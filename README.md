@@ -16,8 +16,7 @@ Keypoint detection을 통해 얻은 keypoint 좌표 시계열 데이터를 일�
 annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 README.md에 학습 양식을 적어놓았다.
 
 ### 앞으로 해야하는 것
-Yolo를 이용한 얼굴 인식, 현재 Tracking 알고리즘과 얼굴 인식을 합쳐서 객체 ID 부여, 현재까지 수행한 것들의 DB 전송용 Dictionary 데이터 생성
-1. Yolo로 사람, 얼굴 검출 → 관절 검출
-2. 검출된 사람 정보에서 얼굴 검출 (수정 난이도 낮음)
-
+현재 Tracking 알고리즘으로 부여된 객체 ID와 얼굴 이미지를 매칭해서 저장. 현재까지 수행한 것들의 DB 전송용 Dictionary 데이터 생성
+검출된 사람 정보에서 얼굴 검출
 + 기존에 Face Recognize를 섞어서 Id구분을 하려고 했으나 cctv에서는 정면도 아니고 얼굴의 크기도 작아서 특징점 추출이 어려울 것으로 간주됨. 따라서 얼굴을 통한 id 구분은 보류
++ Face Detection을 수행하려면 따로 모델을 load 해야하고 그만큼 자원 소모가 늘어나는데, 그냥 keypoint에서 nose, eyes, ears 기준으로 하면 편할듯.
