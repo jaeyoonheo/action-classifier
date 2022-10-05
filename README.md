@@ -20,3 +20,4 @@ annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 RE
 검출된 사람 정보에서 얼굴 검출
 + 기존에 Face Recognize를 섞어서 Id구분을 하려고 했으나 cctv에서는 정면도 아니고 얼굴의 크기도 작아서 특징점 추출이 어려울 것으로 간주됨. 따라서 얼굴을 통한 id 구분은 보류
 + Face Detection을 수행하려면 따로 모델을 load 해야하고 그만큼 자원 소모가 늘어나는데, 그냥 keypoint에서 nose, eyes, ears 기준으로 하면 편할듯.
++ 이라고 생각했는데 하다보니 SORT 이전에 keypoint 기반 얼굴을 따야하는데 그게 조금 힘들다.
