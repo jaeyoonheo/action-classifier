@@ -15,6 +15,8 @@ import numpy as np
 from math import dist
 
 import cv2
+import csv
+import datetime
 import os
 import torchvision
 import torch
@@ -158,7 +160,7 @@ class Ui_MainWindow(object):
         # 영상 재생 현황을 나타내기 위한 slider의 현재 위치 세팅
         self.videoSlider.setRange(0,frame-1)
         self.videoSlider.setSingleStep(1)
-
+        personal_report = []
         # 영상이 열려 있으면
         while self.cap.isOpened():
             cnt += 1
@@ -208,7 +210,7 @@ class Ui_MainWindow(object):
                     '''
                     tmp[0,1] 코, tmp[2,3] 왼쪽눈, tmp[4,5] 오른쪽 눈, tmp[6,7] 왼쪽 귀, tmp[8,9] 오른쪽 
                     코에서 전체 영상의 1/6 size만큼 얼굴 crop
-                    시계열 데이터가 2개 이상이면 거리 측정 실행.
+                    시계열 데이터가 기준치 이상이면 거리 측정 실행.
                     '''
                     boxes = output['boxes'][kp].cpu() # .numpy().tolist()
 
@@ -235,17 +237,18 @@ class Ui_MainWindow(object):
                         else:
                             tmp[i] -= y1
                             tmp[i] /= box_height
-                    
 
                     # 총 9개의 프레임까지 저장하고, 그 갯수가 넘어가면 lstm 모델에 입력해서 어떤 동작인지 결과 확인
                     # 분류에 사용하는 시계열 데이터의 길이를 늘렸을 때 정확도가 비약적으로 향상되는 것을 확인함
                     # result는 학습된 클래스 개수만큼 각 동작에 대한 confidence를 출력 / 가장 높은 confidence를 가지는 값을 영상에 출력
                     if len(self.jointQueue) < id :
                         self.jointQueue.append([tmp])
+                        start = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+                        # id, 입장 시간, 퇴장 시간, 얼굴 경로
+                        personal_report.append([id, start, start, 'not detected'])
                     else :
                         self.jointQueue[id-1].append(tmp)
                         if len(self.jointQueue[id-1])>8:
-                            f_cnt = 0
                             result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
                             result = result[0]
                             print(result)
@@ -253,13 +256,21 @@ class Ui_MainWindow(object):
                             self.jointQueue[id-1].pop(0)
                             
                             cv2.putText(skeletal_img, str(id)+' '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
-                            face_img = img[face_y1:face_y2,face_x1:face_x2].copy()
-                            #img[0:100,0:100]
-                            cv2.imwrite('./save/'+str(id)+'_'+str(f_cnt)+'.jpg',face_img)
-                            f_cnt += 1
+                            
+                            # 퇴장 시간 갱신
+                            personal_report[id-1][2] = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+
+                            # 얼굴 없으면
+                            if personal_report[id-1][3] != 'not detected':
+                                # 얼굴 나오는 지 검사
+                                if tmp[0] > tmp[6] and tmp[0] < tmp[8]:
+                                    # 얼굴 이미지 크롭 후 경로 저장
+                                    face_img = img[face_y1:face_y2,face_x1:face_x2].copy()
+                                    face_dir = './save/id-'+str(id)+'.jpg'
+                                    cv2.imwrite(face_dir,face_img)
+                                    personal_report[id-1][3] = face_dir
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
-
                 
                 # joint가 검출된 영상을 라벨에 출력
                 sqImg = QtGui.QImage(skeletal_img.data,w,h,w*c,QtGui.QImage.Format_RGB888)
@@ -271,6 +282,10 @@ class Ui_MainWindow(object):
                 self.preImg.setPixmap(p)
                 self.processedImg.setPixmap(sp)
 
+                f = open('personal_log.csv','w', newline = '')
+                writer = csv.writer(f)
+                writer.writerows(personal_report)
+                f.close()
                 
             else: break
         # 영상 재생 끝난 후 다시 돌아보기
