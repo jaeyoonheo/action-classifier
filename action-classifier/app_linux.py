@@ -261,9 +261,9 @@ class Ui_MainWindow(object):
                             personal_report[id-1][2] = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
                             # 얼굴 없으면
-                            if personal_report[id-1][3] != 'not detected':
+                            if personal_report[id-1][3] == 'not detected':
                                 # 얼굴 나오는 지 검사
-                                if tmp[0] > tmp[6] and tmp[0] < tmp[8]:
+                                if not (tmp[0] > tmp[6] and tmp[0] < tmp[8]):
                                     # 얼굴 이미지 크롭 후 경로 저장
                                     face_img = img[face_y1:face_y2,face_x1:face_x2].copy()
                                     face_dir = './save/id-'+str(id)+'.jpg'
