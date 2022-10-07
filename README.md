@@ -15,7 +15,7 @@ Keypoint detection을 통해 얻은 keypoint 좌표 시계열 데이터를 일�
 기존의 17점 keypoint을 대신하여 사용하기 위해 16점 혹은 27점 keypoint를 직접 학습한다.
 annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 README.md에 학습 양식을 적어놓았다.
 
-### v1.1.0
+### v1.1.0 Update
 얼굴 이미지를 crop해서 서버에 저장하고 
 (id, 입장 시간, 퇴장 시간, 이동 거리, 얼굴 이미지 경로) 를 csv 파일로 저장하도록 업데이트 했습니다.
 
