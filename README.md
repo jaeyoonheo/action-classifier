@@ -15,9 +15,20 @@ Keypoint detection을 통해 얻은 keypoint 좌표 시계열 데이터를 일�
 기존의 17점 keypoint을 대신하여 사용하기 위해 16점 혹은 27점 keypoint를 직접 학습한다.
 annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 README.md에 학습 양식을 적어놓았다.
 
-### 앞으로 해야하는 것
-현재 Tracking 알고리즘으로 부여된 객체 ID와 얼굴 이미지를 매칭해서 저장. 현재까지 수행한 것들의 DB 전송용 Dictionary 데이터 생성
-검출된 사람 정보에서 얼굴 검출
-+ 기존에 Face Recognize를 섞어서 Id구분을 하려고 했으나 cctv에서는 정면도 아니고 얼굴의 크기도 작아서 특징점 추출이 어려울 것으로 간주됨. 따라서 얼굴을 통한 id 구분은 보류
-+ Face Detection을 수행하려면 따로 모델을 load 해야하고 그만큼 자원 소모가 늘어나는데, 그냥 keypoint에서 nose, eyes, ears 기준으로 하면 편할듯.
-+ 이라고 생각했는데 하다보니 SORT 이전에 keypoint 기반 얼굴을 따야하는데 그게 조금 힘들다.
+### v1.1.0
+얼굴 이미지를 crop해서 서버에 저장하고 
+(id, 입장 시간, 퇴장 시간, 이동 거리, 얼굴 이미지 경로) 를 csv 파일로 저장하도록 업데이트 했습니다.
+
+모든 검출된 객체들을 DB에 저장할 수 있도록 파일을 출력합니다. save 폴더에서 크롭된 얼굴 이미지를 확인할 수 있습니다.
+
+[다크 프로그래머 :: 영상의 기하학적 해석 - 영상의 지면 투영(ground projection) (tistory.com)](https://darkpgmr.tistory.com/153)
+해당 포스팅을 참고해서 영상에서 사람이 닿아있는 지면까지의 거리와 각도, cosine 법칙의 대변의 길이를 구하는 공식을 통해 이전 프레임의 위치에서 현재 프레임의 위치까지 거리를 갱신하고 합산하도록 적용했습니다.
+
+
+
+Face Detection의 경우 Pytorch에서 FaceNet 모델을 적용했으나, 기존 Keypoint RCNN의 결과물로 얼굴의 keypoint를 지정하고 있기에 자원을 절약하기 위해 정면 / 측면을 바라보는 얼굴을 crop할 수 있도록 수정했습니다.
+
+
+
+SORT 알고리즘을 통해 Object Tracking을 수행하고 있으며 개별 객체마다 id를 부여하고 입장, 퇴장시간, 이동 거리, 얼굴 이미지를 저장, 갱신합니다.
+
