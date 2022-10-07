@@ -51,3 +51,5 @@ SORT 알고리즘을 통해 Object Tracking을 수행하고 있으며 개별 객
 
 `action_classifier/distance.py`  에서 수정할 수 있습니다.
 
+![image](https://user-images.githubusercontent.com/109254266/194532029-edd00cda-f87f-4cb0-b639-291f77246f4b.png)
+얼굴 검출 확인
