@@ -21,14 +21,33 @@ annotation file과 image file이 1:1로 대칭되어야 하며, 폴더 내부 RE
 
 모든 검출된 객체들을 DB에 저장할 수 있도록 파일을 출력합니다. save 폴더에서 크롭된 얼굴 이미지를 확인할 수 있습니다.
 
-[다크 프로그래머 :: 영상의 기하학적 해석 - 영상의 지면 투영(ground projection) (tistory.com)](https://darkpgmr.tistory.com/153)
+
+
+> [다크 프로그래머 :: 영상의 기하학적 해석 - 영상의 지면 투영(ground projection) (tistory.com)](https://darkpgmr.tistory.com/153
+
 해당 포스팅을 참고해서 영상에서 사람이 닿아있는 지면까지의 거리와 각도, cosine 법칙의 대변의 길이를 구하는 공식을 통해 이전 프레임의 위치에서 현재 프레임의 위치까지 거리를 갱신하고 합산하도록 적용했습니다.
-
-
 
 Face Detection의 경우 Pytorch에서 FaceNet 모델을 적용했으나, 기존 Keypoint RCNN의 결과물로 얼굴의 keypoint를 지정하고 있기에 자원을 절약하기 위해 정면 / 측면을 바라보는 얼굴을 crop할 수 있도록 수정했습니다.
 
-
-
 SORT 알고리즘을 통해 Object Tracking을 수행하고 있으며 개별 객체마다 id를 부여하고 입장, 퇴장시간, 이동 거리, 얼굴 이미지를 저장, 갱신합니다.
+
+
+
+### 수정 가능한 변수
+
+카메라의 calibration 정보와 frame size를 갱신해야 이동 거리를 정상적으로 산출할 수 있습니다.
+
+`action_classifier/app_linux.py` 의 LSTM_size 변수를 수정할 수 있습니다.
+
+입력하는 시계열 데이터의 길이가 길어지면 정확도가 향상되지만 반응 속도가 감소합니다.
+
+32Frame을 사용했을 때 약 89%의 정확도를 가지고, 동작 1초 후에 반응합니다.
+
+
+
+`action_classifier/app_linux.py` 의 Line 280에서 이미지의 저장 경로를 수정할 수 있습니다.
+
+
+
+`action_classifier/distance.py`  에서 수정할 수 있습니다.
 
