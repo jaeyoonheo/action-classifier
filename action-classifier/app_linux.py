@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from torchvision import transforms as T
 
 import joint
+import distance
 
 from sort import *
 
@@ -243,11 +244,24 @@ class Ui_MainWindow(object):
                     # result는 학습된 클래스 개수만큼 각 동작에 대한 confidence를 출력 / 가장 높은 confidence를 가지는 값을 영상에 출력
                     if len(self.jointQueue) < id :
                         self.jointQueue.append([tmp])
-                        start = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+                        start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         # id, 입장 시간, 퇴장 시간, 얼굴 경로
-                        personal_report.append([id, start, start, 'not detected'])
+                        personal_report.append([id, start, start, 0,'not detected'])
+
+                        prev_dis, prev_theta = distance.distance_angle_measure((x1+x2)/2, y2)
+
                     else :
                         self.jointQueue[id-1].append(tmp)
+
+                        # 퇴장 시간 갱신
+                        personal_report[id-1][2] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # 카메라 정보와 프레임 정보는 distance.py에서 수정
+                        # 이동 거리 갱신
+                        prev_dis, prev_theta, traveled_distance = distance.get_traveled(prev_dis, prev_theta, (x1+x2)/2, y2)
+                        # 이동 거리 합산
+                        personal_report[id-1][3] += traveled_distance
+
                         if len(self.jointQueue[id-1])>8:
                             result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
                             result = result[0]
@@ -256,19 +270,16 @@ class Ui_MainWindow(object):
                             self.jointQueue[id-1].pop(0)
                             
                             cv2.putText(skeletal_img, str(id)+' '+action[result], (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
-                            
-                            # 퇴장 시간 갱신
-                            personal_report[id-1][2] = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
                             # 얼굴 없으면
-                            if personal_report[id-1][3] == 'not detected':
+                            if personal_report[id-1][4] == 'not detected':
                                 # 얼굴 나오는 지 검사
                                 if not (tmp[0] > tmp[6] and tmp[0] < tmp[8]):
                                     # 얼굴 이미지 크롭 후 경로 저장
                                     face_img = img[face_y1:face_y2,face_x1:face_x2].copy()
                                     face_dir = './save/id-'+str(id)+'.jpg'
                                     cv2.imwrite(face_dir,face_img)
-                                    personal_report[id-1][3] = face_dir
+                                    personal_report[id-1][4] = face_dir
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
                 
