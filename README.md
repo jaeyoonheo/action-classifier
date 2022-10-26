@@ -56,8 +56,46 @@ SORT 알고리즘을 통해 Object Tracking을 수행하고 있으며 개별 객
 얼굴 검출 확인
 
 
+# Compare to Face ID in Database 
 
-### 추가중인 기능
+### Added Function
 
-기존 얼굴 DB와 비교하고 유사도를 출력하는 기능.
-특징점을 이용하는 방법을 찾아봤는데, 검출되는 얼굴 이미지가 크지 않아서 제대로 동작할지 모름. 일단 추가 
+* `action_classifier.py`, `app_linux.py`  : DB에 저장된 얼굴 이미지와 현재 프레임에서 검출된 객체의 얼굴 이미지를 비교, 대상의 id와 이동 경로, 입장 및 퇴장 시간을 DB에 기록하는 기능 추가
+
+* code line 312 ~ 364
+
+
+
+### Reference Stack
+
+* Siamese : 얼굴에서 특징점을 검출하고 두 이미지 사이의 유사도를 검사 (낮을수록 닮은 사람)
+* csv : csv 파일 출력
+
+
+
+### Changed
+
+* SiameseNetwork 구조 클래스 추가
+
+
+
+### Usage
+
+* requirements.txt를 install 한 후 동작
+* 기능을 사용하기 위해 아래 링크를 통해 모델을 새로 학습할 수 있음
+  https://colab.research.google.com/github/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch/blob/master/Siamese-networks-medium.ipynb 
+* 얼굴 이미지를 저장하기 위해 save 폴더 추가 필요
+* faceDB에 기존에 저장된 인원들의 얼굴 이미지를 추가
+
+
+
+### Output
+
+![image](https://user-images.githubusercontent.com/109254266/198023594-4d24f727-a8e1-4d8e-af58-8a33b5dc4171.png)
+
+좌측에서부터 각 id, entrance time, exit time, moved distance, directory of face image, matched id, similarity
+
+
+
+![image](https://user-images.githubusercontent.com/109254266/198023876-54e7cc64-d6c1-4874-ae67-58b9634c837d.png)
+
