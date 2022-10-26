@@ -20,15 +20,60 @@ import datetime
 import os
 import torchvision
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from torchvision import transforms as T
+import torch.nn.functional as F
 
 import joint
 import distance
 
 from sort import *
 
+# similarity 검출 모델 구조
+class SiameseNetwork(nn.Module):
+    def __init__(self):
+        super(SiameseNetwork, self).__init__()
+        self.cnn1 = nn.Sequential(
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(1, 4, kernel_size=3),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(4),
+            
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(4, 8, kernel_size=3),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(8),
+
+
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(8, 8, kernel_size=3),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(8),
+
+
+        )
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(8*100*100, 500),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(500, 500),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(500, 5))
+
+    def forward_once(self, x):
+        output = self.cnn1(x)
+        output = output.view(output.size()[0], -1)
+        output = self.fc1(output)
+        return output
+
+    def forward(self, input1, input2):
+        output1 = self.forward_once(input1)
+        output2 = self.forward_once(input2)
+        return output1, output2
 
 # action class / 학습할 때 사용한 index와 동일해야 함
 # action = ['walk','running','standing','sit','jumping','lie']
@@ -48,6 +93,27 @@ lstm_model.eval()
 running = False
 changed = False
 currentFrame = 0
+
+LSTM_size = 9
+
+# init siamese
+siamese_model = torch.load('./model/siamese_model.pt')
+siamese_model.eval()
+
+transform_siamese = T.Compose([T.ToPILImage(),
+                                T.Resize((100,100)),
+                                T.ToTensor()
+                                ])
+
+def get_similarity(img1,img2):
+    img1_tensor = transform_siamese(img1).cuda().unsqueeze(0)
+    img2_tensor = transform_siamese(img2).cuda().unsqueeze(0)
+
+    output1, output2 = siamese_model(img1_tensor, img2_tensor)
+    distance = F.pairwise_distance(output1, output2)
+
+    return distance.item()
+
 
 
 class Ui_MainWindow(object):
@@ -162,6 +228,8 @@ class Ui_MainWindow(object):
         self.videoSlider.setRange(0,frame-1)
         self.videoSlider.setSingleStep(1)
         personal_report = []
+        transform = T.Compose([T.ToTensor()])
+        
         # 영상이 열려 있으면
         while self.cap.isOpened():
             cnt += 1
@@ -179,7 +247,6 @@ class Ui_MainWindow(object):
                 pixmap = QtGui.QPixmap.fromImage(qImg)
                         
                 # 이미지를 텐서로 변환
-                transform = T.Compose([T.ToTensor()])
                 img_tensor = transform(img).cuda()
                         
                 # 모델에 영상을 입력해서 pose detection 결과를 확인
@@ -245,8 +312,8 @@ class Ui_MainWindow(object):
                     if len(self.jointQueue) < id :
                         self.jointQueue.append([tmp])
                         start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        # id, 입장 시간, 퇴장 시간, 얼굴 경로
-                        personal_report.append([id, start, start, 0,'not detected'])
+                        # id, 입장 시간, 퇴장 시간, 얼굴 경로, 사용자 id, 유사도
+                        personal_report.append([id, start, start, 0,'not detected',-1,-1])
 
                         prev_dis, prev_theta = distance.distance_angle_measure((x1+x2)/2, y2)
 
@@ -262,7 +329,7 @@ class Ui_MainWindow(object):
                         # 이동 거리 합산
                         personal_report[id-1][3] += traveled_distance
 
-                        if len(self.jointQueue[id-1])>8:
+                        if len(self.jointQueue[id-1])>LSTM_size-1:
                             result = lstm_model(torch.Tensor([self.jointQueue[id-1]])).tolist()
                             result = result[0]
                             print(result)
@@ -280,6 +347,21 @@ class Ui_MainWindow(object):
                                     face_dir = './save/id-'+str(id)+'.jpg'
                                     cv2.imwrite(face_dir,face_img)
                                     personal_report[id-1][4] = face_dir
+
+                                    face_img = cv2.cvtColor(face_img,cv2.COLOR_BGR2GRAY)
+                                    # get face similarity compared to database
+                                    faceDB = os.listdir('faceDB')
+                                    min_sim = 0
+                                    
+                                    # 저장된 이미지와 현재 얼굴 이미지를 비교해서 유사도 계산
+                                    for i in range(len(faceDB)):
+                                        std_img = cv2.imread('faceDB/'+faceDB[i],cv2.IMREAD_GRAYSCALE)
+                                        sim = get_similarity(face_img, std_img)
+                                        if min_sim > sim or personal_report[id-1][5]==-1:
+                                            min_sim = sim
+                                            personal_report[id-1][5] = i
+                                            personal_report[id-1][6] = sim 
+                                                                       
                             continue
                     cv2.putText(skeletal_img, str(id), (x,y),cv2.FONT_HERSHEY_SIMPLEX,1,(177,100,192),5,cv2.LINE_AA)
                 
