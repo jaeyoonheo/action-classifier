@@ -1,6 +1,10 @@
 # action-classifier
 
 사람이 존재하는 영상으로부터 joint를 검출하여 특징점의 프레임별 시계열 데이터로 lstm을 학습, 어떤 행동을 하고있는 것인지 판별하는 프로그램
+사용을 위해서 학습된 LSTM model.pt와 얼굴 유사도 검사 siamese model.pt가 필요합니다
+LSTM의 경우 학습을 위해서 Human-Pose-Estimation를 이용합니다. https://github.com/spmallick/learnopencv
+Siamese 얼굴 유사도 검사를 위해서 이 repository를 참고합니다. https://github.com/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch
+
 
 ### Keypoint Detection
 pytorch의 keypoint-rcnn pretrained model을 사용하여 인물으로부터 17개의 신체부위 keypoint를 검출한다.
